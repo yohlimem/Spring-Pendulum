@@ -10,6 +10,7 @@ struct Model {
     pendulum: SpringMass,
     best_pos: Vec2,
     file: Writer<std::fs::File>,
+    size: f32,
 }
 
 fn main() {
@@ -28,7 +29,7 @@ fn model(app: &App) -> Model {
     let pendulum = SpringMass::default();
     let mut file = Writer::from_path("hi.csv").unwrap();
     file.write_record(&["Pe", "Ke", "Te"]).unwrap();
-    Model { egui, pendulum, best_pos: vec2(0.0, 0.0), file }
+    Model { egui, pendulum, best_pos: vec2(0.0, 0.0), file, size: 10.0 }
 }
 
 fn update(app: &App, model: &mut Model, update: Update) {
@@ -45,8 +46,10 @@ fn update(app: &App, model: &mut Model, update: Update) {
         model.pendulum.solver(0.1);
         egui::Window::new("Rum window").show(&ctx, |ui| {
             ui.label("res");
-            // ui.add(egui::widgets::ProgressBar::new(Pe / Te).text("Potential energy"));
-            // ui.add(egui::widgets::ProgressBar::new(Ke / Te).text("Kinetic energy"));
+            ui.add(egui::Slider::new(&mut model.size, 10.0..=50.0).text("Size"));
+            ui.add(egui::widgets::ProgressBar::new(Pe / (Pe + Ke)).text("Potential energy"));
+            ui.add(egui::widgets::ProgressBar::new(Ke / (Pe + Ke)).text("Kinetic energy"));
+            ui.add(egui::widgets::ProgressBar::new((Pe + Ke)/ 1200.0).text("Total energy"));
         });
         model.file.write_record(&[Pe.to_string(), Ke.to_string(), (Ke + Pe).to_string()]).unwrap();
         model.file.flush().unwrap();
@@ -57,7 +60,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     }
     
 
-    move_pos(&mut model.pendulum, app);
+    move_pos(model, app);
 
     // println!("{:?}", model.pendulum);
 }
@@ -70,23 +73,24 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().color(BLACK);
 
+    // draw.line()
+    //     .start(model.pendulum.pos)
+    //     .end(model.pendulum.bob_pos * model.size)
+    //     .color(WHITE);
+    draw_spring(&draw, model.pendulum.pos, model.pendulum.bob_pos * model.size, 20, 50.0);
     draw.line()
-        .start(model.pendulum.pos)
-        .end(model.pendulum.bob_pos)
-        .color(WHITE);
-    draw.line()
-        .start(vec2(-1000.0, model.pendulum.ground.y))
-        .end(vec2(1000.0, model.pendulum.ground.y))
+        .start(vec2(-5000.0, model.pendulum.ground.y * model.size))
+        .end(vec2(5000.0, model.pendulum.ground.y * model.size))
         .color(WHITE);
     draw.ellipse()
-        .radius(model.pendulum.bob_mass)
-        .xy(model.pendulum.bob_pos)
+        .radius(model.pendulum.bob_mass * model.size)
+        .xy(model.pendulum.bob_pos * model.size)
         .color(WHITE);
 
 
     draw.ellipse()
         .radius(20.0)
-        .xy(model.best_pos)
+        .xy(model.best_pos * model.size)
         .color(RED);
 
 
@@ -94,8 +98,54 @@ fn view(app: &App, model: &Model, frame: Frame) {
     model.egui.draw_to_frame(&frame).unwrap();
 }
 
-fn move_pos(spring: &mut SpringMass, app: &App){
-    if app.mouse.buttons.left().is_down() {
-        spring.pos = app.mouse.position();
+fn move_pos(model: &mut Model, app: &App){
+    if app.mouse.buttons.right().is_down()  {
+        model.pendulum.bob_pos = app.mouse.position() / model.size;
+        model.pendulum.velocity = vec2(0.0, 0.0);
     }
+}
+
+/// Draws a spring-like shape between two points with a given number of segments and width.
+/// 
+/// # Arguments
+/// 
+/// * `draw` - A mutable reference to the nannou draw object.
+/// * `start_pos` - The starting position of the spring.
+/// * `end_pos` - The ending position of the spring.
+/// * `segment_num` - The number of segments that make up the spring.
+/// * `segment_width` - The width of each segment of the spring.
+fn draw_spring(draw: &Draw, start_pos: Vec2, end_pos: Vec2, segment_num: u32, segment_width: f32){
+    let spacing = start_pos.distance(end_pos) / segment_num as f32;
+    let to_point = end_pos - start_pos;
+    let to_normal = to_point.normalize_or_zero();
+    let angle = to_point.angle();
+    for i in 0..segment_num {
+        let pos1 = start_pos + (to_normal * i as f32 * spacing as f32 + vec2(-segment_width/2.0,spacing as f32).rotate(angle + PI/2.0));
+        let pos2 = start_pos + (to_normal * i as f32 * spacing as f32 + vec2(segment_width/2.0,spacing * 1.2 as f32).rotate(angle + PI/2.0));
+        let nextpos = start_pos + (to_normal * (i + 1) as f32 * spacing as f32 + vec2(-segment_width/2.0,spacing).rotate(angle + PI/2.0));
+        draw.line()
+            .start(pos1)
+            .end(pos2)
+            .color(WHITE);
+        if i == segment_num - 1 {
+            let pos1 = start_pos + (to_normal * (i + 1) as f32 * spacing as f32 + vec2(-segment_width/4.0,spacing as f32).rotate(angle + PI/2.0));
+            
+            draw.line()
+                .start(pos2)
+                .end(pos1)
+                .color(WHITE);
+            draw.line()
+                .start(pos1)
+                .end(end_pos)
+                .color(WHITE);
+        }
+        else {
+            draw.line()
+                .start(nextpos)
+                .end(pos2)
+                .color(WHITE);
+
+        }
+    }
+
 }

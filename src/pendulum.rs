@@ -19,35 +19,30 @@ pub struct SpringMass {
 }
 
 impl SpringMass {
+    /// Updates the pendulum's position, velocity, and acceleration using the fourth-order Runge-Kutta method.
+    ///
+    /// # Arguments
+    ///
+    /// * `dt` - The time step to use for the update.
+    ///
+    /// # Returns
+    ///
+    /// None
     pub fn solver(&mut self, dt: f32) {
-        // get the velocity using the direction that was moved
-        // println!("acc: {}, vel: {}", self.acceleration, velocity);
-        // self.acceleration = Vec2::ZERO;
-        // self.acceleration = Self::rk4(dt, |x| x,self.spring_mass() / self.bob_mass + vec2(0.0, self.gravity));
-        self.acceleration = Self::rk4(dt, |x| x,self.spring_mass() / self.bob_mass);
-        // self.acceleration += Self::rk4(dt, |x| x, vec2(0.0, self.gravity) / self.bob_mass);
+        self.acceleration = Self::rk4(dt, |x| x,self.spring_mass() / self.bob_mass + vec2(0.0, self.gravity));
 
         self.velocity += Self::rk4(dt, |x| x, self.acceleration);
         self.bob_pos += Self::rk4(dt, |x| x,self.velocity);
 
-
-        
     }
 
     pub fn calculate_energy(&mut self) -> (f32, f32){
 
         let kinetic_energy = 0.5 * self.bob_mass * ((self.velocity).length_squared()/0.1) ;
         let spring_potential_energy = 0.5*self.stiffness*(self.bob_pos.distance(self.pos) - self.length).powi(2);
-        // println!("vel: {}, dispalcement: {}", self.velocity.length_squared(), (self.bob_pos.distance(self.pos) - self.length).powi(2));
-        // let spring_potential_energy = 0.0;
-        // let bob_mass_potential_energy = self.bob_mass * self.gravity.abs() * (self.bob_pos.y - self.ground.y);
-        let bob_mass_potential_energy = 0.0;
+
+        let bob_mass_potential_energy = self.bob_mass * self.gravity.abs() * (self.bob_pos.y - self.ground.y);
         let potential_energy = spring_potential_energy + bob_mass_potential_energy;
-        
-        // if self.enitial_potential_energy < potential_energy {
-        //     self.enitial_potential_energy = potential_energy;
-        // }
-        // let kinetic_energy = self.enitial_potential_energy - potential_energy;
 
         println!("PE: {}, KE: {}, TE: {}", potential_energy, kinetic_energy, potential_energy + kinetic_energy);
         (potential_energy, kinetic_energy)
@@ -85,11 +80,11 @@ impl Default for SpringMass {
         let velocity = Vec2::ZERO;
         let acceleration = Vec2::ZERO;
         let bob_pos = vec2(0.01, 1.0);
-        let bob_mass = 20.0;
-        let length = 100.0;
+        let bob_mass = 2.0;
+        let length = 10.0;
         let stiffness = 6.0;
-        let gravity = -100.0;
-        let ground = vec2(0.0, -200.0);
+        let gravity = -20.0;
+        let ground = vec2(0.0, -20.0);
         // let spring_potential_energy = 0.5*stiffness*(length).powi(2);
         // let bob_mass_potential_energy = bob_mass * gravity.abs() * length;
         // let enitial_potential_energy = spring_potential_energy + bob_mass_potential_energy;
