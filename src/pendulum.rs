@@ -8,6 +8,7 @@ pub struct SpringMass {
     pub acceleration: Vec2,
 
     pub stiffness: f32,
+    pub damping: f32,
 
     pub bob_pos: Vec2,
     pub bob_mass: f32,
@@ -29,7 +30,7 @@ impl SpringMass {
     ///
     /// None
     pub fn solver(&mut self, dt: f32) {
-        self.acceleration = Self::rk4(dt, |x| x,self.spring_mass() / self.bob_mass + vec2(0.0, self.gravity));
+        self.acceleration = Self::rk4(dt, |x| x,self.spring_mass() + vec2(0.0, self.gravity));
 
         self.velocity += Self::rk4(dt, |x| x, self.acceleration);
         self.bob_pos += Self::rk4(dt, |x| x,self.velocity);
@@ -63,12 +64,12 @@ impl SpringMass {
         let distance = self.bob_pos.distance(self.pos) - self.length;
         let normal = (self.bob_pos - self.pos).normalize_or_zero();
 
-        let force = -(distance * normal) * self.stiffness;
+        let force = -(distance * normal) * self.stiffness/self.bob_mass - (self.damping/self.bob_mass * self.velocity);
         force
     }
 
-    pub fn collision(&mut self) {
-        if self.bob_pos.y - (self.bob_mass) <= self.ground.y {
+    pub fn collision(&mut self, size_function: &dyn Fn(f32) -> f32) {
+        if self.bob_pos.y - (size_function(self.bob_mass)) <= self.ground.y {
             self.velocity.y *= -1.0;
         }
     }
@@ -98,7 +99,8 @@ impl Default for SpringMass {
             stiffness,
             // enitial_potential_energy,
             gravity,
-            ground
+            ground,
+            damping: 0.0,
         }
     }
 }
