@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use csv::Writer;
 use nannou::prelude::*;
 use nannou_egui::{self, egui, Egui};
@@ -8,11 +10,15 @@ struct Model {
     // window: Window,
     egui: Egui,
     pendulum: SpringMass,
-    best_pos: Vec2,
+    biggest_total_energy: f32,
     file: Writer<std::fs::File>,
     zoom: f32,
     apply_collision: bool,
+    stop_sim: bool,
 }
+
+const DT_SHOWN : f32 = 0.05;
+const DT : f32 = 0.01;
 
 fn main() {
     nannou::app(model).update(update).run();
@@ -34,9 +40,11 @@ fn model(app: &App) -> Model {
     Model { 
         egui,
         pendulum,
-        best_pos: vec2(0.0, 0.0),
-        file, zoom: 10.0,
-        apply_collision: false
+        biggest_total_energy: 0.0,
+        file, 
+        zoom: 10.0,
+        apply_collision: false,
+        stop_sim: false,
     }
 }
 
@@ -47,11 +55,17 @@ fn update(app: &App, model: &mut Model, update: Update) {
         
         let ctx = egui.begin_frame();
         
+        let time_for_dt = (DT_SHOWN / DT).ceil() as u32;
+        let (epe, gpe, ke) = model.pendulum.calculate_energy(DT);
+        model.biggest_total_energy = (ke + (epe + gpe)).max(model.biggest_total_energy);
+        if !model.stop_sim {
+            for _ in 0..time_for_dt {
+                model.pendulum.solver(DT);
+            }
+        }
+        // model.pendulum.solver(DT);
         
-        
-        let (pe, ke) = model.pendulum.calculate_energy();
-        model.pendulum.solver(0.1);
-        egui::Window::new("Rum window").show(&ctx, |ui| {
+        egui::Window::new(format!("delta time: {}, shown speed: {}", DT, DT_SHOWN)).show(&ctx, |ui| {
             ui.label("Spring Controls");
             ui.add(egui::Slider::new(&mut model.zoom, 2.0..=50.0).text("Zoom"));
             ui.add(egui::Slider::new(&mut model.pendulum.bob_mass, 1.0..=50.0).text("Mass"));
@@ -59,15 +73,26 @@ fn update(app: &App, model: &mut Model, update: Update) {
             ui.add(egui::Slider::new(&mut model.pendulum.length, 1.0..=50.0).text("Length"));
             ui.add(egui::Slider::new(&mut model.pendulum.damping, 0.0..=1.0).text("Damping"));
             
+            ui.label("\n Simulation Controls");
+            ui.add(egui::Slider::new(&mut model.pendulum.gravity, -50.0..=50.0).text("Gravity"));
+            ui.add(egui::Slider::new(&mut model.pendulum.ground.y, -80.0..=0.0).text("Ground height"));
+            ui.add(egui::widgets::Checkbox::new(&mut model.stop_sim, "Stop Simulation"));
+            // add step forward button
+            if ui.button("Step").clicked() {
+                model.pendulum.solver(DT);
+            }
+            
             
             ui.add(egui::widgets::Checkbox::new(&mut model.apply_collision, "Collision"));
 
             ui.label("\n Spring Energy");
-            ui.add(egui::widgets::ProgressBar::new(pe / (pe + ke)).text("Potential energy"));
-            ui.add(egui::widgets::ProgressBar::new(ke / (pe + ke)).text("Kinetic energy"));
-            ui.add(egui::widgets::ProgressBar::new((pe + ke)/ 10000.0).text("Total energy"));
+            ui.add(egui::widgets::ProgressBar::new(gpe / model.biggest_total_energy).text("Gravitational Potential energy"));
+            ui.add(egui::widgets::ProgressBar::new(epe / model.biggest_total_energy).text("Elastic Potential energy"));
+            ui.add(egui::widgets::ProgressBar::new((epe + gpe) / model.biggest_total_energy).text("total Potential energy"));
+            ui.add(egui::widgets::ProgressBar::new(ke / model.biggest_total_energy).text("Kinetic energy"));
+            ui.add(egui::widgets::ProgressBar::new(((epe + gpe) + ke)/ model.biggest_total_energy).text(format!("Total energy: {}", (epe + gpe) + ke)));
         });
-        model.file.write_record(&[pe.to_string(), ke.to_string(), (ke + pe).to_string()]).unwrap();
+        model.file.write_record(&[(epe + gpe).to_string(), ke.to_string(), (ke + (epe + gpe)).to_string()]).unwrap();
         model.file.flush().unwrap();
     }
     // apply the collision to the ground
@@ -83,7 +108,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     //     model.best_pos = model.pendulum.bob_pos;
     // }
     
-        // move the bob with the mouse
+    // move the bob with the mouse
     move_pos(model, app);
 
     // println!("{:?}", model.pendulum);
@@ -103,7 +128,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     //     .color(WHITE);
 
     // spring connection (fancy line)
-    draw_spring(&draw, model.pendulum.pos, model.pendulum.bob_pos * model.zoom, 20, 50.0);
+    draw_spring(&draw, model.pendulum.pos, model.pendulum.bob_pos * model.zoom, 20, 10.0 * model.zoom);
 
     // draw the ground
     draw.line()
