@@ -5,5 +5,3 @@ energy:
 
 ## time step of 0.03
 ![image](https://github.com/yohlimem/Spring-Pendulum/assets/91895124/1967f8d7-5fc2-440b-8db5-7d0e95a735f7)
-
-seems like the time step has a mild effect on the accuracy of the energy...
