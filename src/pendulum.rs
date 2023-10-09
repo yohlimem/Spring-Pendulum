@@ -30,23 +30,24 @@ impl SpringMass {
     ///
     /// None
     pub fn solver(&mut self, dt: f32) {
-        self.acceleration = Self::rk4(dt, |x| x,self.spring_mass() + vec2(0.0, self.gravity));
+        self.acceleration = self.spring_mass(dt) + vec2(0.0, self.gravity);
 
         self.velocity += Self::rk4(dt, |x| x, self.acceleration);
         self.bob_pos += Self::rk4(dt, |x| x,self.velocity);
 
     }
 
-    pub fn calculate_energy(&mut self) -> (f32, f32){
+    pub fn calculate_energy(&mut self, dt:f32) -> (f32, f32, f32){
 
-        let kinetic_energy = 0.5 * self.bob_mass * ((self.velocity).length_squared()/0.1) ;
+        let kinetic_energy = 0.5 * self.bob_mass * ((self.velocity).length_squared());
+        
         let spring_potential_energy = 0.5*self.stiffness*(self.bob_pos.distance(self.pos) - self.length).powi(2);
-
-        let bob_mass_potential_energy = self.bob_mass * self.gravity.abs() * (self.bob_pos.y - self.ground.y);
-        let potential_energy = spring_potential_energy + bob_mass_potential_energy;
-
+        let gravitational_potential_energy = self.bob_mass * self.gravity.abs() * (self.bob_pos.y - self.ground.y);
+        let potential_energy = spring_potential_energy + gravitational_potential_energy;
+        // println!("dispalcement: {}", (self.bob_pos.distance(self.pos) - self.length).powi(2));
+        // println!("dispalcement from ground: {}", (self.bob_pos.y - self.ground.y));
         println!("PE: {}, KE: {}, TE: {}", potential_energy, kinetic_energy, potential_energy + kinetic_energy);
-        (potential_energy, kinetic_energy)
+        (spring_potential_energy, gravitational_potential_energy, kinetic_energy)
     }
 
     fn rk4<F>(dt: f32, f: F, value: Vec2) -> Vec2
@@ -60,11 +61,11 @@ impl SpringMass {
         (k1 + 2.0 * k2 + 2.0 * k3 + k4) * (dt / 6.0)
     }
     
-    pub fn spring_mass(&self) -> Vec2 {
+    pub fn spring_mass(&self, dt: f32) -> Vec2 {
         let distance = self.bob_pos.distance(self.pos) - self.length;
         let normal = (self.bob_pos - self.pos).normalize_or_zero();
 
-        let force = -(distance * normal) * self.stiffness/self.bob_mass - (self.damping/self.bob_mass * self.velocity);
+        let force = -(distance * normal) * (self.stiffness/self.bob_mass) - ((self.damping/self.bob_mass) * self.velocity);
         force
     }
 
@@ -80,12 +81,12 @@ impl Default for SpringMass {
         let pos = Vec2::ZERO;
         let velocity = Vec2::ZERO;
         let acceleration = Vec2::ZERO;
-        let bob_pos = vec2(0.01, 1.0);
+        let bob_pos = vec2(0.0, -1.0);
         let bob_mass = 2.0;
         let length = 10.0;
         let stiffness = 6.0;
-        let gravity = -20.0;
-        let ground = vec2(0.0, -20.0);
+        let gravity = -1.0;
+        let ground = vec2(0.0, -35.0);
         // let spring_potential_energy = 0.5*stiffness*(length).powi(2);
         // let bob_mass_potential_energy = bob_mass * gravity.abs() * length;
         // let enitial_potential_energy = spring_potential_energy + bob_mass_potential_energy;
